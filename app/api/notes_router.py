@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Request
 from app.database_postrgre.db_postgre import SessionDep
 from app.auth.dependencies import CurrentUser
 from app.database_redis.db_redis import RedisDep
-from app.schemas import SNoteCreate, SNoteAdd, SNoteOut, SNoteUpdate
+from app.schemas import SNoteCreate, SNoteAdd, SNoteOut, SNoteUpdate, SNoteSearch
 
 from app.services.services_api import ServicApi
 
@@ -84,3 +84,17 @@ async def delete_note(
     res = await ServicApi(session, red, None, user).delete_note(note_id)
 
     return
+
+
+@router.post("/search", status_code=status.HTTP_200_OK, response_model=list[SNoteOut])
+async def search_note(
+    search: SNoteSearch,
+    session: SessionDep,  # сессия к БД PostgreSQL
+    user: CurrentUser,  # пользователь (проверка на авторизацию)
+    red: RedisDep,  # сессия к БД Redis
+    request: Request,  # достаем llm
+):
+    """Поиск заметок через LLM (отдает json для БД)"""
+    llm = request.app.state.llm_client  # достаем llm
+    res = await ServicApi(session, red, llm, user).search_notes(search.text)
+    return res

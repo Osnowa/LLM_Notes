@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr
 from app.database_postrgre.models import Priority
 from datetime import date
@@ -73,7 +75,7 @@ class SNoteOut(BaseModel):
     category: str
     description: str
     priority: str | None
-    created_at: str | None
+    created_at: date | None
     deadline: date | None
 
     model_config = ConfigDict(from_attributes=True)
@@ -98,3 +100,25 @@ class SNoteOutLLM(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
     # Backend там добавляет created_at, id
+
+
+### == Для LLM - поиск == ###
+
+
+class SNoteSearch(BaseModel):
+    """Для поиска"""
+
+    text: str
+
+
+class SNoteSearchResult(BaseModel):
+    """Ответ для поиска в БД"""
+
+    priority: Literal["low", "high"] | None = None
+    category: str | None = None
+
+    deadline_from: date | None = None
+    deadline_to: date | None = None
+
+    created_from: date | None = None
+    created_to: date | None = None

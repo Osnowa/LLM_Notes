@@ -53,6 +53,7 @@ class RepoDB:
             stmt = stmt.where(NoteUser.created_at == created_at)
         if deadline:
             stmt = stmt.where(NoteUser.deadline == deadline)
+
         res = await self.session.execute(stmt)
         return res.scalars().all()
 
@@ -90,3 +91,28 @@ class RepoDB:
         await self.session.commit()
 
         return
+
+    async def get_notes_search(self, user: User, filters):
+        """Поиск заметок по запросу от LLM"""
+        stmt = select(NoteUser).where(NoteUser.user_id == user.id)
+
+        if filters.priority:
+            stmt = stmt.where(NoteUser.priority == filters.priority)
+
+        if filters.category:
+            stmt = stmt.where(NoteUser.category == filters.category)
+
+        if filters.created_from:
+            stmt = stmt.where(NoteUser.created_at >= filters.created_from)
+
+        if filters.created_to:
+            stmt = stmt.where(NoteUser.created_at <= filters.created_to)
+
+        if filters.deadline_from:
+            stmt = stmt.where(NoteUser.deadline >= filters.deadline_from)
+
+        if filters.deadline_to:
+            stmt = stmt.where(NoteUser.deadline <= filters.deadline_to)
+
+        res = await self.session.execute(stmt)
+        return res.scalars().all()

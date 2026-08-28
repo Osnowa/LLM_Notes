@@ -2,7 +2,7 @@ import json
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app.schemas import SNoteOutLLM, SNoteOut
+from app.schemas import SNoteOutLLM, SNoteOut, SNoteSearchResult
 
 from app.database_postrgre.repo_dbp import RepoDB
 
@@ -117,3 +117,23 @@ class ServicApi:
         await self.red.delete(f"notes:{self.user.id}")  # удаляем из кэша (всех заметок)
 
         return
+
+    async def search_notes(self, search):
+        """Поиск заметок по запросу от LLM"""
+        response = await self.llm.generate_search(
+            search
+        )  # генерация запроса поиска для БД (от LLM)
+
+        try:
+            data = json.loads(response)  # преобразуем в словарь
+            validated = SNoteSearchResult.model_validate(
+                data
+            )  # валидация, отдает обьект класса (обращение через .)
+        except (json.JSONDecodeError, ValidationError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        res = await self.repo_dbp.get_notes_search(self.user, validated)
+
+        notes = [SNoteOut.model_validate(note) for note in res]
+
+        return notes
