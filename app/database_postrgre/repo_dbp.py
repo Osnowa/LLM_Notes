@@ -116,3 +116,27 @@ class RepoDB:
 
         res = await self.session.execute(stmt)
         return res.scalars().all()
+
+    async def get_notes_by_ids(
+        self,
+        user,
+        note_ids: list[int],
+    ):
+        """Получаем заметки по id от Chroma"""
+
+        if not note_ids:
+            return []
+
+        stmt = select(NoteUser).where(
+            NoteUser.user_id == user.id,
+            NoteUser.id.in_(note_ids),
+        )
+
+        result = await self.session.execute(stmt)
+
+        notes = result.scalars().all()
+
+        notes_by_id = {note.id: note for note in notes}
+
+        # сохраняем порядок Chroma
+        return [notes_by_id[note_id] for note_id in note_ids if note_id in notes_by_id]

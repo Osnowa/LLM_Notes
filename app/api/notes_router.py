@@ -21,7 +21,28 @@ async def create_note(
 ):
     """Создание заметки"""
     llm = request.app.state.llm_client  # достаем llm
-    return await ServicApi(session, red, llm, user).create_notes(note.text)
+    client_chroma = request.app.state.chroma_client  # достаем БД CHROMA
+
+    return await ServicApi(session, red, llm, user, client_chroma).create_notes(
+        note.text
+    )
+
+
+@router.get("/search", response_model=list[SNoteOut])
+async def search_notes(
+    session: SessionDep,  # сессия к БД PostgreSQL
+    user: CurrentUser,  # пользователь (проверка на авторизацию)
+    red: RedisDep,  # сессия к БД Redis
+    request: Request,
+    text: str,
+    limit: int = 5,
+):
+    """Поиск заметок через CHROMA"""
+    client_chroma = request.app.state.chroma_client
+
+    return await ServicApi(session, red, None, user, client_chroma).search_notes_chroma(
+        text, limit
+    )
 
 
 @router.get("/{note_id}", status_code=status.HTTP_200_OK, response_model=SNoteOut)
@@ -31,7 +52,7 @@ async def get_note(
     user: CurrentUser,  # пользователь (проверка на авторизацию)
     red: RedisDep,  # сессия к БД Redis
 ):
-    res = await ServicApi(session, red, None, user).get_note(note_id)
+    res = await ServicApi(session, red, None, user, None).get_note(note_id)
     if res is None:
         raise HTTPException(status_code=404, detail="Note not found")
     return res
@@ -50,7 +71,7 @@ async def get_notes(
     offset: int = 0,
 ):
 
-    res = await ServicApi(session, red, None, user).get_notes(
+    res = await ServicApi(session, red, None, user, None).get_notes(
         category, priority, created_at, deadline, limit, offset
     )
     if res is None:
@@ -65,8 +86,10 @@ async def update_note(
     session: SessionDep,  # сессия к БД PostgreSQL
     user: CurrentUser,  # пользователь (проверка на авторизацию)
     red: RedisDep,  # сессия к БД Redis
+    request: Request
 ):
-    res = await ServicApi(session, red, None, user).update_note(note_id, note)
+    client_chroma = request.app.state.chroma_client
+    res = await ServicApi(session, red, None, user, client_chroma).update_note(note_id, note)
 
     if res is None:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -80,13 +103,17 @@ async def delete_note(
     session: SessionDep,  # сессия к БД PostgreSQL
     user: CurrentUser,  # пользователь (проверка на авторизацию)
     red: RedisDep,  # сессия к БД Redis
+    request: Request
 ):
-    res = await ServicApi(session, red, None, user).delete_note(note_id)
+    client_chroma = request.app.state.chroma_client
+    res = await ServicApi(session, red, None, user, client_chroma).delete_note(note_id)
 
     return
 
 
-@router.post("/search", status_code=status.HTTP_200_OK, response_model=list[SNoteOut])
+@router.post(
+    "/search_llm", status_code=status.HTTP_200_OK, response_model=list[SNoteOut]
+)
 async def search_note(
     search: SNoteSearch,
     session: SessionDep,  # сессия к БД PostgreSQL
@@ -96,5 +123,5 @@ async def search_note(
 ):
     """Поиск заметок через LLM (отдает json для БД)"""
     llm = request.app.state.llm_client  # достаем llm
-    res = await ServicApi(session, red, llm, user).search_notes(search.text)
+    res = await ServicApi(session, red, llm, user, None).search_notes(search.text)
     return res

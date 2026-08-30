@@ -12,11 +12,12 @@ from app.database_postrgre.repo_dbp import RepoDB
 class ServicApi:
     """Сервис для ручек API"""
 
-    def __init__(self, session, red, llm_client, user):
+    def __init__(self, session, red, llm_client, user, chroma):
         self.repo_dbp = RepoDB(session)  # Репозиторий для работы с БД PostgreSQL
         self.red = red  # Redis
         self.llm = llm_client  # LLM
         self.user = user  # Пользователь
+        self.chroma = chroma
 
     async def create_notes(self, message):
         """Создание заметки"""
@@ -32,9 +33,15 @@ class ServicApi:
 
         res = await self.repo_dbp.add_notes(
             self.user, validated
-        )  # передаем user и заметку в репозиторий БД PostgreSQL
+        )  # передаем user и заметку в репозиторий БД PostgreSQL, получаем по схеме SNoteOut
 
         await self.red.delete(f"notes:{self.user.id}")  # удаляем из кэша (всех заметок)
+
+        ### == Добавляем в коллекцию Chroma == ###
+        await self.chroma.add_note(
+            self.user,
+            res,
+        )
 
         return res
 
@@ -94,6 +101,11 @@ class ServicApi:
 
         res = await self.repo_dbp.update_note(self.user, note_id, note)
 
+        await self.chroma.update_note(
+            self.user,
+            res,
+        )
+
         await self.red.delete(
             f"note:{self.user.id}:{note_id}"
         )  # удаляем из кэша (замекта)
@@ -109,7 +121,12 @@ class ServicApi:
         if note_bd is None:
             return None
 
-        res = await self.repo_dbp.delete_note(self.user, note_id)
+        await self.repo_dbp.delete_note(self.user, note_id)
+
+        await self.chroma.delete_note(
+            self.user,
+            note_id,
+        )
 
         await self.red.delete(
             f"note:{self.user.id}:{note_id}"
@@ -137,3 +154,20 @@ class ServicApi:
         notes = [SNoteOut.model_validate(note) for note in res]
 
         return notes
+
+    async def search_notes_chroma(
+        self,
+        text: str,
+        limit: int = 5,
+    ):
+
+        note_ids = await self.chroma.search_note_ids(
+            self.user,
+            text,
+            limit,
+        )
+
+        return await self.repo_dbp.get_notes_by_ids(
+            self.user,
+            note_ids,
+        )

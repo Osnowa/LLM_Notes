@@ -8,7 +8,7 @@ services:
 
 
   redis:
-    image: redis:7
+    image: redis:8
     volumes:
       - redis_data:/data   
 
@@ -22,6 +22,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data  # данные переживают перезапуск контейнера (этот путь обязательный !)
   
+  chroma:
+    image: chromadb/chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/data
 
   backend:
     build: 
@@ -33,3 +39,4 @@ services:
 volumes:
   redis_data:
   postgres_data:
+  chroma-data:
